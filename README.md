@@ -25,13 +25,12 @@
 1. 新建一个 Worker 服务，拷贝本仓库的 `worker.js` 代码到 Worker 编辑器。
 2. 在 Worker 的环境变量中配置以下内容：
 
-   - `R2_BUCKET`: 你的 R2 Bucket 名称
-   - `R2_ACCESS_KEY_ID`: R2 Access Key
-   - `R2_SECRET_ACCESS_KEY`: R2 Secret Key
-   - `R2_ACCOUNT_ID`: 你的 Cloudflare 账号 ID
    - `password`: 管理员登录密码（如：`yourpassword`）
 
 3. 绑定 R2 存储到 Worker（Workers Dashboard → Settings → R2 Integration）。
+
+   - `r2`：绑定R2存储桶变量名称
+
 4. 部署并访问 Worker 域名。
 
 ### 3. 使用说明
@@ -63,11 +62,6 @@
 - **Cookie 有效期**：登录后 1 小时失效，需重新登录。
 - **最大文件限制**：单张图片最大 5 MB，自动压缩为 JPEG。
 - **防注入**：上传路径自动过滤特殊字符。
-
-## 预览截图
-
-![上传界面截图](https://github.com/git80123/r2-img/raw/main/screenshot.jpg)
-（如有需要可自行添加截图）
 
 ## License
 
