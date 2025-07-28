@@ -73,5 +73,5 @@ https://r2-img.<你的子域>.workers.dev
 - 基于 Cloudflare Workers & R2
 - UI 部分参考了现代简洁风格
 ---
-### License
+## License
 MIT
