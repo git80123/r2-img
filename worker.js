@@ -353,7 +353,7 @@ ${body || `
                 <img src="\${json.url}" />
                 <div class="copy-row">
                   <button class="copy-btn" onclick="copyText('![](\${fullUrl})',this)">复制MD</button>
-                  <button class="copy-btn" onclick="copyText('<img src="\${fullUrl}" alt="img" />',this)">复制HTML</button>
+                  <button class="copy-btn" onclick="copyText('<img src=&quot;\${fullUrl}&quot; alt=&quot;img&quot; />',this)">复制HTML</button>
                   <button class="copy-btn" onclick="copyText('\${fullUrl}',this)">复制URL</button>
                 </div>
               \`;
