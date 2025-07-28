@@ -173,6 +173,7 @@ function getHTML(body = "", loggedIn = false) {
     gap: 10px;
     margin-bottom: 18px;
     margin-top: 10px;
+    align-items: center;
   }
   .preview-card {
     display: flex;
@@ -286,6 +287,19 @@ function getHTML(body = "", loggedIn = false) {
     min-width: 57px;
     max-width: 90px;
   }
+  .folder-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.1em;
+    margin-bottom: 10px;
+    cursor: pointer;
+    color: #007bff;
+    text-decoration: none;
+  }
+  .folder-item:hover {
+    text-decoration: underline;
+  }
 </style>
 </head>
 <body>
@@ -302,6 +316,7 @@ ${body || `
     </div>
   ` : `
     <div class="top-bar">
+      <input type="text" id="uploadPath" placeholder="上传路径(可选)" style="padding:8px 12px;border-radius:8px;border:1px solid #ccd;max-width:120px;">
       <button onclick="location.href='/admin'">进入后台</button>
     </div>
     <div class="upload-card">
@@ -340,6 +355,9 @@ ${body || `
           canvas.toBlob(async blob => {
             const fd = new FormData();
             fd.append('file', new File([blob], file.name, {type:'image/jpeg'}));
+            // 新增：带上传路径
+            const folder = document.getElementById('uploadPath').value.trim();
+            if(folder) fd.append('folder', folder);
             const res = await fetch('/upload',{method:'POST',body:fd});
             const json = await res.json();
             if(json.url){
@@ -410,7 +428,14 @@ export default {
       const ext = file.name.split('.').pop().toLowerCase();
       if(!['jpg','jpeg','png','webp'].includes(ext)) return new Response('格式不支持', {status:400});
       if(file.size > 5 * 1024 * 1024) return new Response('文件太大', {status:413});
-      const key = `${Date.now()}-${file.name}`;
+      // 新增：支持路径
+      let key = `${Date.now()}-${file.name}`;
+      const folder = fd.get('folder');
+      if(folder){
+        // 简单过滤特殊字符，防止注入
+        const safeFolder = folder.replace(/[\\/?%*:|"<>.]/g, '').replace(/^\s+|\s+$/g, '');
+        if(safeFolder) key = safeFolder + '/' + key;
+      }
       await env.r2.put(key, file.stream(), {httpMetadata:{contentType:file.type}});
       return new Response(JSON.stringify({url:`/img/${encodeURIComponent(key)}`}), {headers:{'Content-Type':'application/json'}});
     }
@@ -431,27 +456,71 @@ export default {
     if(path === '/admin'){
       if(!isAuth(req)) return new Response('Unauthorized', {status:401});
       const list = await env.r2.list();
-      const imagesHtml = list.objects.map(obj => {
-        const urlPath = `/img/${encodeURIComponent(obj.key)}`;
-        const fullUrl = `${url.origin}${urlPath}`;
-        return `
-          <div class="image-item">
-            <img src="${urlPath}" alt="${obj.key}" />
-            <div class="image-btns">
-              <button class="copy-btn" onclick="copyText('![](${fullUrl})', this)">复制MD</button>
-              <button class="copy-btn" onclick="copyText('<img src=&quot;${fullUrl}&quot; alt=&quot;img&quot; />', this)">复制HTML</button>
-              <button class="copy-btn" onclick="copyText('${fullUrl}', this)">复制URL</button>
-            </div>
-          </div>`;
-      }).join('');
+      // 统计所有一级文件夹和根目录图片
+      const folders = {};
+      const rootImages = [];
+      for(const obj of list.objects){
+        const idx = obj.key.indexOf('/');
+        if(idx !== -1){
+          const folder = obj.key.slice(0, idx);
+          if(!folders[folder]) folders[folder] = [];
+          folders[folder].push(obj);
+        }else{
+          rootImages.push(obj);
+        }
+      }
+      // 文件夹列表
+      let foldersHtml = Object.keys(folders).sort().map(f => `
+        <a class="folder-item" href="/admin?folder=${encodeURIComponent(f)}">📁 ${f}</a>
+      `).join('');
+      if(foldersHtml) foldersHtml = `<div style="margin-bottom:16px;">${foldersHtml}</div>`;
+      // 判断是否浏览文件夹下
+      let imagesHtml = "";
+      let pageTitle = '后台管理 - 图片列表';
+      if(url.searchParams.has('folder')){
+        const folder = url.searchParams.get('folder');
+        const imgs = folders[folder] || [];
+        imagesHtml = imgs.map(obj => {
+          const urlPath = `/img/${encodeURIComponent(obj.key)}`;
+          const fullUrl = `${url.origin}${urlPath}`;
+          return `
+            <div class="image-item">
+              <img src="${urlPath}" alt="${obj.key}" />
+              <div class="image-btns">
+                <button class="copy-btn" onclick="copyText('![](${fullUrl})', this)">复制MD</button>
+                <button class="copy-btn" onclick="copyText('<img src=&quot;${fullUrl}&quot; alt=&quot;img&quot; />', this)">复制HTML</button>
+                <button class="copy-btn" onclick="copyText('${fullUrl}', this)">复制URL</button>
+              </div>
+            </div>`;
+        }).join('');
+        pageTitle = `后台管理 - 文件夹：${folder}`;
+        imagesHtml = imagesHtml || '<p>该文件夹暂无图片</p>';
+        foldersHtml = `<a href="/admin" style="color:#007bff;display:inline-block;margin-bottom:14px;">⬅ 返回上一层</a>`;
+      }else{
+        imagesHtml = rootImages.map(obj => {
+          const urlPath = `/img/${encodeURIComponent(obj.key)}`;
+          const fullUrl = `${url.origin}${urlPath}`;
+          return `
+            <div class="image-item">
+              <img src="${urlPath}" alt="${obj.key}" />
+              <div class="image-btns">
+                <button class="copy-btn" onclick="copyText('![](${fullUrl})', this)">复制MD</button>
+                <button class="copy-btn" onclick="copyText('<img src=&quot;${fullUrl}&quot; alt=&quot;img&quot; />', this)">复制HTML</button>
+                <button class="copy-btn" onclick="copyText('${fullUrl}', this)">复制URL</button>
+              </div>
+            </div>`;
+        }).join('');
+        imagesHtml = imagesHtml || '<p>暂无图片</p>';
+      }
 
       const page = `
       <div class="top-bar">
         <button onclick="location.href='/'">返回上传</button>
       </div>
-      <h2 style="margin-top:0;">后台管理 - 图片列表</h2>
+      <h2 style="margin-top:0;">${pageTitle}</h2>
+      ${foldersHtml}
       <div class="grid-container">
-        ${imagesHtml || '<p>暂无图片</p>'}
+        ${imagesHtml}
       </div>
       <script>
         function copyText(text, btn) {
